@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Chess</title>
+    <link href="https://fonts.googleapis.com/css?family=Material+Icons|Arbutus+Slab" rel="stylesheet">
+    <link rel="stylesheet" href="lib/chessboard-0.3.0.min.css">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #eee;
+        }
+
+        .app {
+            display: block;
+            background: #533319;
+            color: #fff;
+            margin: 20px auto;
+            width: 394px;
+            /* 2px board border, 1px app border */
+            border: 1px solid #404040;
+            font-family: "Arbutus Slab", "Roboto Slab", sans-serif;
+            font-size: 14px;
+        }
+
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: stretch;
+            line-height: 28px;
+        }
+
+        .toolbar__section {
+            flex: 0 0 auto;
+            display: flex;
+            justify-content: flex-start;
+            align-items: stretch;
+        }
+
+        .toolbar__section__item {
+            flex: 0 0 auto;
+            display: block;
+            padding: 2px 8px;
+        }
+
+        .toolbar__section__item:link,
+        .toolbar__section__item:visited {
+            cursor: pointer;
+            outline: 0;
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .toolbar__section__item:hover {
+            background: rgba(0, 0, 0, 0.35);
+        }
+
+        .toolbar__section__item.toolbar__section__item--pending {
+            color: #faa;
+        }
+
+        .toolbar__section__item.toolbar__section__item--hidden {
+            display: none;
+        }
+
+        .toolbar__section__item i.material-icons {
+            font-size: 20px;
+            padding-bottom: 4px;
+            vertical-align: middle;
+        }
+
+        .board {
+            display: block;
+            width: 400px;
+            touch-action: none; /* prevent scroll on touchscreen */
+        }
+
+        .board .board-b72b1 {
+            border: none;
+        }
+
+        .app__section-title {
+            display: block;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            margin-top: 4px;
+        }
+
+        .history {
+            display: block;
+        }
+
+        .history__item {
+            display: block;
+            padding: 2px 8px;
+            line-height: 24px;
+        }
+
+        .history__item__piece {
+            display: inline-block;
+            vertical-align: middle;
+            height: 22px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 6px;
+        }
+
+        .history__item__piece.history__item__piece--captured {
+            background: rgba(255, 0, 0, 0.5);
+        }
+
+        .history__item__piece.history__item__piece--promoted {
+            background: rgba(0, 255, 0, 0.5);
+        }
+
+        .captures {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: flex-start;
+            flex-wrap: wrap;
+            border-bottom: 1px solid #eee;
+            padding: 2px 8px;
+        }
+
+        .captures__piece {
+            flex: 0 0 auto;
+            display: block;
+            height: 22px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 6px;
+            margin: 4px 8px;
+            margin-left: 0;
+        }
+
+        .warning {
+            display: block;
+            background: rgba(255, 0, 0, 0.3);
+            padding: 2px 8px;
+            text-align: center;
+        }
+
+        .warning.warning--hidden {
+            display: none;
+        }
+
+        .board--highlightlastmove .lastmove:not(.highlight-32417):not(.highlight2-9c5d2) {
+            box-shadow: inset 0 0 5px 0 rgba(0, 0, 255, 0.7);  
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+        <div class="toolbar">
+            <div class="toolbar__section toolbar__section--left">
+                <span class="toolbar__section__item toolbar__section__item--turn"></span>
+            </div>
+            <div class="toolbar__section toolbar__section--right">
+                <a href="javascript:void(0);" class="toolbar__section__item toolbar__section__item--computer toolbar__section__item--hidden" title="Make computer move">
+                    <i class="material-icons">developer_board</i>
+                </a>
+                <a href="javascript:void(0);" class="toolbar__section__item toolbar__section__item--highlight" title="Highlight Last Move">
+                    <i class="material-icons">flag</i>
+                </a>
+                <a href="javascript:void(0);" class="toolbar__section__item toolbar__section__item--flip" title="Flip Sides">
+                    <i class="material-icons">rotate_right</i>
+                </a>
+                <a href="javascript:void(0);" class="toolbar__section__item toolbar__section__item--reset" title="Restart Game">
+                    <i class="material-icons">delete</i>
+                </a>
+                <a href="javascript:void(0);" class="toolbar__section__item toolbar__section__item--gid" title="Game ID"></a>
+            </div>
+        </div>
+        <div class="board board--highlightlastmove" id="board"></div>
+        <div class="warning">No connection</div>
+        <div class="app__section-title">Captures</div>
+        <div class="captures"></div>
+        <div class="app__section-title">History</div>
+        <div class="history"></div>
+    </div>
+
+    <script src="lib/jquery-3.3.1.min.js"></script>
+    <script src="lib/glue.min.js"></script>
+    <script src="lib/chess.min.js"></script>
+    <script src="lib/chessboard-0.3.0.min.js"></script>
+    <script>
+        function doWarning(msg, timeout) {
+            if (!msg) {
+                document.querySelector(".app .warning").classList.add("warning--hidden");
+                return;
+            }
+            let msgID = `${new Date().getTime()}`;
+            document.querySelector(".app .warning").dataset.msg = msgID;
+            document.querySelector(".app .warning").innerText = msg;
+            document.querySelector(".app .warning").classList.remove("warning--hidden");
+            if (timeout && timeout > 1) window.setTimeout(() => document.querySelector(".app .warning").dataset.msg == msgID && doWarning(null), timeout);
+        }
+
+        const socket = glue();
+        const game = new Chess();
+        let gid = window.location.hash.replace(/[^A-Za-z0-9_-]/g, "");
+
+        function isPromotion(move) {
+            let tmpGame = new Chess();
+            tmpGame.load(game.fen());
+
+            let tmpMove = {from: move.from, to: move.to, promotion: "q"};
+            let m = tmpGame.move(tmpMove);
+            if (!m) return false;
+            tmpGame.undo();
+
+            let fromRank = tmpMove.from.substring(2, 1), toRank = tmpMove.to.substring(2, 1);
+            return tmpGame.get(tmpMove.from).type == tmpGame.PAWN && ((fromRank == "7" && toRank == "8") || (fromRank == "2" && toRank == "1"));
+        }
+
+        const board = new ChessBoard("board", {
+            draggable: true,
+            position: 'start',
+            onDrop: (from, to) => {
+                // Handle move
+                let move;
+                if (isPromotion({from, to})) {
+                    let opts = [game.QUEEN, game.KNIGHT, game.ROOK, game.BISHOP], promotion = "";
+                    while (opts.indexOf(promotion) < 0) promotion = prompt(`Promote to: (${opts[0]}) Queen, (${opts[1]}) Knight, (${opts[2]}) Rook, or (${opts[3]}) Bishop?`).toLowerCase();
+                    move = game.move({from, to, promotion});
+                } else {
+                    move = game.move({ from, to });
+                }
+                if (!move) return "snapback";
+                console.info("game: sent board update");
+                socket.send(game.pgn());
+            },
+            onDragStart: (from, piece) => {
+                // Don't pick up pieces if game over or wrong color
+                if (game.game_over() === true || !piece.startsWith(game.turn())) {
+                    return false;
+                }
+            }
+        });
+
+        socket.onMessage(data => {
+            console.debug(`socket: receive: ${data}`);
+
+            if (data.startsWith("id:")) {
+                // Connection confirmed
+                let ngid = data.split(":")[1];
+                console.info(`game: recieved id ${ngid}, connection confirmed`);
+                doWarning(null);
+                window.location.hash = `#${ngid}`;
+                gid = ngid;
+                document.querySelector(".app .toolbar__section__item--gid").innerHTML = `ID: ${ngid}`;
+            } else if (data.startsWith("temperror:")) {
+                // Temporary server error
+                let msg = data.split(":")[1];
+                console.info(`game: recieved temp error ${msg}`);
+                doWarning(msg, 5000);
+            } else if (data == "reset") {
+                // Board reset
+                console.info(`game: recieved reset`);
+                console.log("pgn backup: ", game.pgn());
+                game.reset();
+            } else {
+                // Board update
+                console.info("game: recieved board update");
+                game.load_pgn(data);
+            }
+
+            board.position(game.fen());
+
+            // Status text
+            document.querySelector(".app .toolbar__section__item--turn").innerText = game.turn().toLowerCase().replace("w", "White").replace("b", "Black") + (game.in_check() ? " (check)" : "");
+            if (game.game_over()) document.querySelector(".app .toolbar__section__item--turn").innerText = "Game Over";
+            if (game.in_stalemate()) document.querySelector(".app .toolbar__section__item--turn").innerText = "Stalemate";
+            if (game.in_checkmate()) document.querySelector(".app .toolbar__section__item--turn").innerText = "Checkmate";
+            if (game.in_draw()) document.querySelector(".app .toolbar__section__item--turn").innerText = "Draw";
+
+            // Move history
+            document.querySelector(".app .history").innerHTML = "";
+            let tmpGame = new Chess();
+            game.history({verbose: true}).forEach(move => tmpGame.move(move)); // recreate capture, castling, and other lost data from pgn import
+            tmpGame.history({verbose: true}).map((move, i) => {
+                let it = document.createElement("div");
+                it.classList.add("history__item");
+                let h = `${i+1}. move ${move.from} <img class="history__item__piece history__item__piece--moved" src="img/chesspieces/wikipedia/${move.color.toLowerCase()}${move.piece.toUpperCase()}.png" /> to ${move.to}`;
+                if (move.flags.indexOf("k") > -1) h += ` (kingside castling)`;
+                if (move.flags.indexOf("q") > -1) h += ` (queenside castling)`;
+                if (move.promotion) h += `, promoted to <img class="history__item__piece history__item__piece--promoted" src="img/chesspieces/wikipedia/${move.color.toLowerCase()}${move.promotion.toUpperCase()}.png" />`;
+                if (move.captured) h += `, capturing <img class="history__item__piece history__item__piece--captured" src="img/chesspieces/wikipedia/${move.color.toLowerCase() == "b" ? "w" : "b"}${move.captured.toUpperCase()}.png" />`;
+                if (move.flags.indexOf("e") > -1) h += ` (en passant)`;
+                it.innerHTML = h;
+                return it;                
+            }).reverse().forEach(i => document.querySelector(".app .history").appendChild(i));
+
+            // Capture list
+            document.querySelector(".app .captures").innerHTML = "";
+            tmpGame.history({verbose: true}).filter(move => move.captured).map(move => {
+                let it = document.createElement("img");
+                it.classList.add("captures__piece");
+                it.src = `img/chesspieces/wikipedia/${move.color.toLowerCase() == "b" ? "w" : "b"}${move.captured.toUpperCase()}.png`;
+                return it;
+            }).forEach(i => document.querySelector(".app .captures").appendChild(i));
+
+            // Highlight last move
+            document.querySelectorAll(`#board .lastmove`).forEach(el => el.classList.remove('lastmove'));
+            let lastMove = tmpGame.history({verbose: true}).reverse()[0];
+            if (lastMove) {
+                document.querySelector(`#board .square-${lastMove.from}`).classList.add('lastmove');
+                document.querySelector(`#board .square-${lastMove.to}`).classList.add('lastmove');
+            }
+        });
+
+        document.querySelector(".app .toolbar__section__item--flip").addEventListener("click", e => board.flip());
+        document.querySelector(".app .toolbar__section__item--highlight").addEventListener("click", e => document.querySelector("#board").classList.toggle("board--highlightlastmove"));
+        document.querySelector(".app .toolbar__section__item--reset").addEventListener("click", e => confirm("Are you sure you want to reset? This cannot be undone.") && socket.send("reset"));
+        document.querySelector(".app .toolbar__section__item--gid").addEventListener("click", e => {
+            let ngid = prompt("Game ID to switch to?", "").replace(/[^A-Za-z0-9_-]/g, "");
+            if (!ngid || ngid == "") return;
+            if (ngid == "c") {
+                document.querySelector(".toolbar__section__item--computer").classList.toggle("toolbar__section__item--hidden");
+                return;
+            }
+            console.info(`game: sending connect for gid ${ngid}`)
+            doWarning("Connecting to game");
+            socket.send(`connect:${ngid}`);
+        });
+        document.querySelector(".app .toolbar__section__item--computer").addEventListener("click", e => {
+            console.info(`game: making computer move`);
+            document.querySelector(".app .toolbar__section__item--computer").classList.add("toolbar__section__item--pending");
+            getBestMove(game.turn()).then(m => {
+            document.querySelector(".app .toolbar__section__item--computer").classList.remove("toolbar__section__item--pending");
+                if (m == "none") {
+                    console.log("game: no computer move");
+                    return;
+                }
+                let move = game.move(m);
+                if (!move) {
+                    console.log("game: invalid computer move");
+                    return;
+                }
+                console.info("game: sent board update");
+                socket.send(game.pgn());
+            });
+        });
+
+        socket.on("connected", () => {
+            console.info("socket: connected");
+            console.info("game: connected");
+            document.querySelector(".app .warning").classList.add("warning--hidden");
+            if (gid == "") {
+                console.info("game: no gid, sending empty connect")
+                doWarning("Connecting to game");
+                socket.send("connect")
+            } else {
+                console.info(`game: sending connect for gid ${gid}`)
+                doWarning("Connecting to game");
+                socket.send(`connect:${gid}`);
+            }
+        });
+
+        socket.on("connecting", () => {
+            console.info("socket: connecting");
+            console.info("game: connecting");
+            doWarning("Connecting");
+        });
+
+        socket.on("reconnecting", () => {
+            console.warn("socket: reconnecting");
+            doWarning("Lost connection, reonnecting");
+        });
+
+        socket.on("error", msg => {
+            console.error(`socket: error: ${msg}`);
+            doWarning(`Socket error: ${msg}`, 5000);
+        });
+
+        socket.on("disconnected", () => {
+            console.error("socket: disconnected");
+            doWarning("No connection");
+        });
+
+        socket.on("connect_timeout", () => {
+            console.error("socket: connection timeout");
+            doWarning("No connection");
+        });
+
+        socket.on("timeout", () => {
+            console.error("socket: timeout");
+            doWarning("Connection timeout");
+        });
+
+        socket.on("discard_send_buffer", () => {
+            console.error("socket: some data could not be send and was discarded");
+            doWarning("Socket error: some data could not be sent and was discarded", 5000);
+        });
+
+        function getBestMove(color) {
+            return new Promise((resolve, reject) => {
+                console.log("game: starting stockfish");
+                let stockfish = new Stockfish({
+                    color,
+                    skillLevel: 18,
+                    onReady: () => console.log("game: stockfish ready"),
+                    onInfo: info => console.debug(`game: stockfish info: ${JSON.stringify(info)}`),
+                    onMove: move => {
+                        console.log(`game: stockfish move: ${JSON.stringify(move)}`);
+                        stockfish.engine.terminate();
+                        console.log(`game: stockfish terminated`);
+                        resolve(move);
+                    }
+                });
+                stockfish.startNewGame();
+
+                let tmpGame = new Chess();
+                game.history({verbose: true}).forEach(move => tmpGame.move(move)); // recreate capture, castling, and other lost data from pgn import
+                let moves = tmpGame.history({verbose: true}).map(move => `${move.from}${move.to}${move.promotion ? move.promotion : ''}`).join(" ");
+                stockfish.startTurn(moves, 400);
+            });
+        }
+
+        // following code (used to interface with stockfish) is based on https://developer.microsoft.com/en-us/microsoft-edge/testdrive/demos/chess/scripts/match.js
+        function Stockfish(options) {
+            this.engine = new Worker("lib/stockfish.min.js");
+            this.engine.onmessage = this.onEngineMessage.bind(this);
+            this.engineLoaded = false;
+            this.engineReady = false;
+
+            this.skillLevel = options.skillLevel || 0;
+            this.color = options.color;
+            this.onReady = options.onReady;
+            this.onInfo = options.onInfo;
+            this.onMove = options.onMove;
+
+            this.uciCmd('uci');
+        }
+
+        Stockfish.prototype.uciCmd = function(cmd) {
+            this.engine.postMessage(cmd);
+        };
+
+        Stockfish.prototype.startNewGame = function() {
+            this.uciCmd('ucinewgame');
+            this.uciCmd('isready');
+            this.engineReady = false;
+        };
+
+        Stockfish.prototype.onEngineMessage = function(event) {
+            let line;
+
+            if (event && typeof event === 'object') {
+                line = event.data;
+            } else {
+                line = event;
+            }
+
+            if (line === 'uciok') {
+                this.engineLoaded = true;
+            } else if (line === 'readyok') {
+                this.engineReady = true;
+                this.setSkillLevel(this.skillLevel);
+                if (this.onReady) {
+                    this.onReady();
+                }
+            } else {
+                let match = line.match(/^bestmove ([a-h][1-8])([a-h][1-8])([qrbk])?/);
+                if (match) {
+                    // the AI made a move
+                    if (this.onMove) {
+                        this.onMove({
+                            from: match[1],
+                            to: match[2],
+                            promotion: match[3]
+                        });
+                    }
+                } else if (line.startsWith("bestmove")) {
+                    if (line.indexOf("(none)") < 0) console.warn(`stockfish: unknown bestmove: '${line}', treating as no move`);
+                    if (this.onMove) {
+                        this.onMove("none");
+                    }
+                } else {
+                    // example feedback:
+                    //info depth 14 seldepth 18 multipv 1 score cp -10 nodes 56851 nps 143563 time 396 pv e8g8 c2c4 c7c5 d4c5 e7c5 a2a3 d5c4 e2c4 b8c6 b2b4 c5e7 b1c3 a7a6 c4b3
+                    match = line.match(/^info .*\bdepth (\d+) .*\bscore cp (-?\d+) .*\bnodes (\d+) .*\btime (\d+)/);
+                    if (match) {
+                        let i = {
+                            depth: parseInt(match[1], 10) || 0,
+                            score: parseInt(match[2], 10) || 0,
+                            nodes: parseInt(match[3], 10) || 0,
+                            time: parseInt(match[4], 10) || 0
+                        };
+                        // https://chessprogramming.wikispaces.com/Pawn+Advantage,+Win+Percentage,+and+ELO
+		                i.winProbability = 1 / (1 + Math.pow(10, -i.score / 4 / 100));
+                        this.onInfo(i);
+                    }
+                }
+            }
+        };
+
+        Stockfish.prototype.startTurn = function(gameMoves, moveTime) {
+            this.uciCmd(`position startpos moves ${gameMoves || ''}`);
+            this.uciCmd(`go movetime ${moveTime || 500}`);
+        };
+
+        Stockfish.prototype.setSkillLevel = function(skill) {
+            const clampedSkill = Math.max(0, Math.min(skill, 20));
+            this.uciCmd(`setoption name Skill Level value ${clampedSkill}`);
+
+            // NOTE: Stockfish level 20 does not make errors (intentially),
+            // so these numbers have no effect on level 20.
+            // Level 0 starts at 1
+            const errorProbability = Math.round((clampedSkill * 6.35) + 1);
+
+            // Level 0 starts at 10
+            const maxError = Math.round((clampedSkill * -0.5) + 10);
+
+            this.uciCmd(`setoption name Skill Level Maximum Error value ${maxError}`);
+            this.uciCmd(`setoption name Skill Level Probability value ${errorProbability}`);
+        };
+
+        Stockfish.prototype.reset = function() {
+            this.uciCmd('setoption name Contempt value 0');
+            this.setSkillLevel(0);
+            this.uciCmd('setoption name King Safety value 0'); /// Agressive 100 (it's now symetric)
+        };
+
+        Stockfish.prototype.setContempt = function(contempt) {
+            this.uciCmd(`setoption name Contempt value ${contempt}`);
+        };
+
+        Stockfish.prototype.setAggressiveness = function(value) {
+            this.uciCmd(`setoption name Aggressiveness value ${value}`);
+        };
+    </script>
+</body>
+
+</html>
