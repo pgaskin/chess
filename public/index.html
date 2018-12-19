@@ -404,7 +404,7 @@
                 console.log("game: starting stockfish");
                 let stockfish = new Stockfish({
                     color,
-                    skillLevel: 18,
+                    skillLevel: 20,
                     onReady: () => console.log("game: stockfish ready"),
                     onInfo: info => console.debug(`game: stockfish info: ${JSON.stringify(info)}`),
                     onMove: move => {
