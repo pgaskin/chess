@@ -7,11 +7,10 @@ import (
 	"strings"
 
 	"github.com/desertbit/glue"
-	"github.com/gobuffalo/packr"
+	"github.com/geek1011/chess/public"
 	"github.com/spf13/pflag"
 )
 
-//go:generate packr -v -z
 func main() {
 	addr := pflag.StringP("addr", "a", ":8095", "address to listen on")
 	assets := pflag.StringP("assets", "s", "", "the directory where the assets are stored (default: embedded)")
@@ -28,7 +27,7 @@ func main() {
 	if *assets != "" {
 		http.Handle("/", http.FileServer(http.Dir(*assets)))
 	} else {
-		http.Handle("/", http.FileServer(packr.NewBox("./public")))
+		http.Handle("/", http.FileServer(public.Assets))
 	}
 
 	socket := glue.NewServer(glue.Options{
