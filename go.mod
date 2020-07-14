@@ -1,4 +1,4 @@
-module github.com/geek1011/chess
+module github.com/pgaskin/chess
 
 go 1.12
 

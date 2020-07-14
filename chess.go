@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/desertbit/glue"
-	"github.com/geek1011/chess/public"
+	"github.com/pgaskin/chess/public"
 	"github.com/spf13/pflag"
 )
 
